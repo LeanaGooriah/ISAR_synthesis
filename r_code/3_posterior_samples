@@ -1,0 +1,251 @@
+# code to get posterior samples for each study-level slope from multivariate model fit to
+# ISAR data
+
+library(brms)
+library(tidyverse)
+library(ggridges)
+
+# load the model fit
+load("C:/Users/leana/Desktop/ISAR_meta_analysis/univariate_models.Rdata")
+
+
+# study-levels 
+study_levels <- Sn_lnorm$data %>% 
+  as_tibble() %>% 
+  distinct(Study.x) %>% 
+  mutate(level = Study.x) %>%
+  nest(data = c(level)) 
+
+study_sample_posterior <- study_levels %>%
+  mutate(Spie_global = purrr::map(data, ~posterior_samples(Spie_lnorm, 
+                                                          pars = 'b_larea',
+                                                          fixed = TRUE) %>% unlist() %>% as.numeric()),
+         Spie_study = purrr::map(data, ~posterior_samples(Spie_lnorm, 
+                                                    pars = paste('r_Study.x[', as.character(.x$level), ',larea]', sep=''),
+                                                    fixed = TRUE) %>% unlist() %>% as.numeric()),
+         Sn_global = purrr::map(data, ~posterior_samples(Sn_lnorm, 
+                                                        pars = 'b_larea',
+                                                        fixed = TRUE) %>% unlist() %>% as.numeric()),
+         Sn_study = purrr::map(data, ~posterior_samples(Sn_lnorm, 
+                                                  pars = paste('r_Study.x[', as.character(.x$level), ',larea]', sep=''),
+                                                  fixed = TRUE) %>% unlist() %>% as.numeric()))
+
+# load the meta data
+env_file <- read_csv("ISAR_meta_analysis/env_file.csv")
+
+# calculate total island area
+env_file <- env_file %>%
+  mutate(Study.x = Study) %>% 
+  select(-Study) %>% 
+  group_by(Study.x) %>% 
+  mutate(total_area = sum(island_area_ha),
+         sd_area = sd(island_area_ha))
+
+meta <- env_file %>%
+  distinct(Study.x, Taxa, Type_of_island, n_island_cat, 
+           total_area, sd_area)
+
+# check that you have no NAs
+study_sample_posterior <- left_join(study_sample_posterior,
+                                    meta,
+                                    by = 'Study.x') %>% 
+  unnest(cols = c(Spie_global, Spie_study,
+                  Sn_global, Sn_study)) %>% 
+  select(-data)
+
+# simplify island type: true (ocean / archipelago) or other
+study_sample_posterior <- study_sample_posterior %>% 
+  mutate(true_other = ifelse(Type_of_island=='True island', 'True', 'Other'))
+
+
+post_taxa <-
+ggplot() +
+  facet_wrap(~metric, ncol = 2) +
+  # density of posteriors of Spie study-level slopes grouped by taxa
+  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+                                 mutate(metric='Spie'),
+                               aes(x = Spie_global + Spie_study,
+                                   y = Taxa,
+                                   # col="#fdbe85",
+                                   fill = stat(quantile)
+                               ),
+                               quantiles = c(0.025, 0.25, 0.75, 0.975),
+                               calc_ecdf = T,
+                               scale = 0.9,
+                               linetype = 0) +
+  # repeat for Sn
+  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+                                 mutate(metric='Sn'),
+                               aes(x = Sn_global + Sn_study,
+                                   y = Taxa,
+                                   # col = "#fdbe85",
+                                   fill = stat(quantile)
+                               ),
+                               quantiles = c(0.025, 0.25, 0.75, 0.975),
+                               calc_ecdf = T,
+                               scale = 0.9,
+                               linetype = 0) +
+  geom_vline(xintercept = 0, lty = 2) +
+  # global estimates
+  geom_rect(data = study_sample_posterior %>% 
+                mutate(metric = 'Spie',
+                       lower = quantile(Spie_global, probs = c(0.025)),
+                       upper = quantile(Spie_global, probs = c(0.975))) %>% 
+              distinct(metric, lower, upper),
+              aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
+            alpha = 0.5) +
+  geom_rect(data = study_sample_posterior %>% 
+              mutate(metric = 'Sn',
+                     lower = quantile(Sn_global, probs = c(0.025)),
+                     upper = quantile(Sn_global, probs = c(0.975))) %>% 
+              distinct(metric, lower, upper),
+            aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
+            alpha = 0.5) +
+  geom_vline(data = study_sample_posterior %>% 
+               mutate(metric = 'Spie'),
+             aes(xintercept = median(Spie_global))) +
+  geom_vline(data = study_sample_posterior %>% 
+               mutate(metric = 'Sn'),
+             aes(xintercept = median(Sn_global))) +
+  # add point for median of posterior distribution
+  geom_point(data = study_sample_posterior %>% 
+               mutate(metric='Sn'),
+             aes(x = Sn_global + Sn_study, 
+                 y = Taxa),
+             stat = ggstance:::StatSummaryh,
+             fun.x = median,
+             size = 2.5, shape = 17) + 
+  # add point for median of posterior distribution
+  geom_point(data = study_sample_posterior %>% 
+               mutate(metric='Spie'),
+             aes(x = Spie_global + Spie_study, 
+                 y = Taxa),
+             stat = ggstance:::StatSummaryh,
+             fun.x = median,
+             size = 2.5, shape = 17) +
+  geom_text(data = study_sample_posterior %>%
+              group_by(Taxa) %>%
+              summarise(n_study = n_distinct(Study.x)) %>%
+              ungroup() %>%
+              distinct(Taxa, n_study, .keep_all = T) %>% 
+              mutate(metric = 'Sn'),
+            aes(x=0.4, y=Taxa,
+                label=paste('n[study] == ', n_study)),
+            size=3.8,
+            nudge_y = 0.1, parse = T) +
+  theme_bw() +
+  labs(y = 'Taxa',
+       x = ''#expression(paste('Study-level slopes'))
+       # subtitle = expression(paste('Posterior samples of study-level ', S[std], ' fragment area slopes'))#,
+       # tag = 'c'
+  ) +
+  scale_y_discrete(labels = scales::wrap_format(12), expand = c(0.05,0,0.1,0)) +
+  scale_fill_manual(name = 'Posterior probability',
+                    values = c('#bdc9e1', '#74a9cf', '#2b8cbe',
+                               '#74a9cf', '#bdc9e1')) +
+  theme(panel.grid = element_blank(),
+        legend.key = element_blank(),
+        legend.position = 'none', 
+        axis.title.y = element_blank(),
+        legend.justification = c(1, 1),
+        legend.background = element_blank()) +
+  theme(aspect.ratio = 1) 
+
+
+post_type <-
+ggplot() +
+  facet_wrap(~metric, ncol = 2) +
+  # density of posteriors of Spie study-level slopes grouped by taxa
+  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+                                 mutate(metric = 'Spie'),
+                               aes(x = Spie_global + Spie_study,
+                                   y = true_other,
+                                   fill = stat(quantile)
+                               ),
+                               quantiles = c(0.025, 0.25, 0.75, 0.975),
+                               calc_ecdf = T,
+                               scale = 0.9, linetype = 0) +
+  # repeat for Sn
+  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+                                 mutate(metric = 'Sn'),
+                               aes(x = Sn_global + Sn_study,
+                                   y = true_other,
+                                   fill = stat(quantile)
+                               ),
+                               quantiles = c(0.025, 0.25, 0.75, 0.975),
+                               calc_ecdf = T,
+                               scale = 0.9, linetype = 0) +
+  # global estimates
+  geom_rect(data = study_sample_posterior %>% 
+              mutate(metric = 'Spie',
+                     lower = quantile(Spie_global, probs = c(0.025)),
+                     upper = quantile(Spie_global, probs = c(0.975))) %>% 
+              distinct(metric, lower, upper),
+            aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
+            alpha = 0.5) +
+  geom_rect(data = study_sample_posterior %>% 
+              mutate(metric = 'Sn',
+                     lower = quantile(Sn_global, probs = c(0.025)),
+                     upper = quantile(Sn_global, probs = c(0.975))) %>% 
+              distinct(metric, lower, upper),
+            aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
+            alpha = 0.5) +
+  geom_vline(data = study_sample_posterior %>% 
+               mutate(metric = 'Spie'),
+             aes(xintercept = median(Spie_global))) +
+  geom_vline(data = study_sample_posterior %>% 
+               mutate(metric = 'Sn'),
+             aes(xintercept = median(Sn_global))) +
+  # add point for median of posterior distribution
+  geom_point(data = study_sample_posterior %>% 
+               mutate(metric = 'Sn'),
+             aes(x = Sn_global + Sn_study, 
+                 y = true_other),
+             stat = ggstance:::StatSummaryh,
+             fun.x = median,
+             size = 2.5, shape = 17) + 
+  # add point for median of posterior distribution
+  geom_point(data = study_sample_posterior %>% 
+               mutate(metric = 'Spie'),
+             aes(x = Spie_global + Spie_study, 
+                 y = true_other),
+             stat = ggstance:::StatSummaryh,
+             fun.x = median,
+             size = 2.5, shape = 17) +
+  geom_vline(xintercept = 0, lty = 2) +
+  geom_text(data = study_sample_posterior %>%
+              group_by(true_other) %>%
+              summarise(n_study = n_distinct(Study.x)) %>%
+              ungroup() %>%
+              distinct(true_other, n_study, .keep_all = T) %>% 
+              mutate(metric = 'Sn'),
+            aes(x=0.4, y=true_other,
+                label=paste('n[study] == ', n_study)),
+            size=3.8,
+            nudge_y = 0.1, parse = T) +
+  theme_bw() +
+  labs(y = 'Island type',
+       x = expression(paste('Study-level slopes'))
+       # subtitle = expression(paste('Posterior samples of study-level ', S[std], ' fragment area slopes'))#,
+       # tag = 'c'
+  ) +
+  scale_y_discrete(labels = scales::wrap_format(12), expand = c(0.05,0,0.1,0)) +
+  scale_fill_manual(name = 'Posterior probability',
+                    values = c('#bdc9e1', '#74a9cf', '#2b8cbe',
+                               '#74a9cf', '#bdc9e1')) +
+  theme(panel.grid = element_blank(),
+        legend.key = element_blank(),
+        legend.position = 'none', 
+        legend.justification = c(1, 1),
+        axis.title.y = element_blank(),
+        legend.background = element_blank()) +
+  theme(aspect.ratio = 1) 
+
+fig3 <- cowplot::plot_grid(post_taxa,
+                   post_type, nrow = 2,labels = c('a', 'b'),
+                   align = 'hv')
+png("fig3.png")
+print(fig3)
+dev.off()
+
+
