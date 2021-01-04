@@ -10,10 +10,9 @@ library(brms)
 
 # load the data
 
-load("~/Desktop/ISAR_meta_analysis/diversity_global_synthesis_with_area.Rdata")
+load(paste(data_path, "/diversity_global_synthesis_with_area.Rdata",sep=""))
 
 # log and mean centre island area to use as a predictor
-
 temp = all_ISAR %>% 
   filter(!is.na(island_area_ha))
 
@@ -22,7 +21,7 @@ temp = temp %>%
 
 temp$larea <- log(temp$island_area_ha) - mean(log(temp$island_area_ha))
 
-## Fit univariate responses 
+## univariate responses (same as Chase et al 2020 Nature analyses)
 Sn = temp %>% 
   filter(index=='S_n') %>% 
   select(Study.x, value, larea, island_area_ha, island_code, Sn = value)
@@ -33,7 +32,7 @@ Spie = temp %>%
 
 
 #  non-varying intercept and slope (with study-level variation)
-Sn_lnorm <- brm(Sn ~ larea + (larea |p| Study.x),
+Sn_lnorm <- brm(Sn ~ larea + (larea | Study.x),
                 family = lognormal(),
                 data = Sn,
                 cores = 4, chains = 4)
@@ -41,7 +40,7 @@ Sn_lnorm <- brm(Sn ~ larea + (larea |p| Study.x),
 pp_check(Sn_lnorm) +
   scale_x_continuous(trans = 'log2')
 
-Spie_lnorm <- brm(Spie ~ larea + (larea |p| Study.x),
+Spie_lnorm <- brm(Spie ~ larea + (larea | Study.x),
                 family = lognormal(),
                 data = Spie,
                 cores = 4, chains = 4)
@@ -49,15 +48,7 @@ Spie_lnorm <- brm(Spie ~ larea + (larea |p| Study.x),
 pp_check(Spie_lnorm) +
   scale_x_continuous(trans = 'log2')
 
-save(Sn_lnorm, Spie_lnorm, file = '~/Desktop/ISAR Meta-analysis/results/univariate_models.Rdata')
-
-
-
-
-
-
-
-
+save(Sn_lnorm, Spie_lnorm, file = (paste(data_path, "/univariate_models.Rdata",sep="")))
 
 
 
