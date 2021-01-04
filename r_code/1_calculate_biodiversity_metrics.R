@@ -24,7 +24,6 @@ require(mobr) # version 1.0
 ############################
 # Set path and directories #
 ############################
-setwd("C:/Users/leana/Desktop")
 work_dir <- getwd() # first set working directory in Menu/Session/Set working directory/to Project 
 
 data_path <- paste(work_dir,"/ISAR_datasets",sep="")
@@ -115,4 +114,4 @@ div_out$unique_id <- paste(div_out$Study,div_out$group,sep ="_")
   all_ISAR <-  left_join(div_out, env_file,
              by = "unique_id")
   
-  save(all_ISAR, file ="/Users/leanagooriah/Desktop/ISAR_meta_analysis/diversity_global_synthesis_with_area.Rdata")
+  save(all_ISAR, file = (paste(data_path, "/diversity_global_synthesis_with_area.Rdata",sep="")))
