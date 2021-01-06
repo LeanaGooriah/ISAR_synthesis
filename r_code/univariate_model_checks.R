@@ -101,5 +101,5 @@ pp_check(Spie_lnorm) +
         panel.border = element_rect(fill = NA, colour = 'black')),
   labels = 'auto', align = 'hv')
 
-ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/pp_check.png',
+ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/posterior_density_check.png',
        width = 250, height = 130, units = 'mm')

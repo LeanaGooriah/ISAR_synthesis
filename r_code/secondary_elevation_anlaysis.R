@@ -206,7 +206,7 @@ cowplot::plot_grid(Sn_elev_plot,
   cowplot::draw_label(y = 0.04, label = 'Elevation range (m)')
 
 
-ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/fig4_log_scale.png', 
+ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/Fig5_log_scale.png', 
        width = 250, height = 130, units = 'mm')
 
 

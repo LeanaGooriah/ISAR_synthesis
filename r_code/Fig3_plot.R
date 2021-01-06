@@ -1,293 +1,246 @@
-# code to get posterior samples for each study-level slope from multivariate model fit to
-# ISAR data
-
-library(brms)
+# some results plots for the univariate models fit to ISAR data
+# code to for analysis of ISARs
+rm(list = ls())
 library(tidyverse)
-library(ggridges)
+library(brms)
 
-# load the model fit
+# SB computer
+load('~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/diversity_global_synthesis_with_area_NEW.Rdata')
 load('~/Dropbox/ISAR Meta-analysis/new_Sept2020/results/univariate_models.Rdata')
+load('~/Dropbox/ISAR Meta-analysis/new_Sept2020/results/Sn_Spie_multi.Rdata')
 
-# study-levels 
-study_levels <- Sn_lnorm$data %>% 
+# data that models were fit to:
+# log and mean centre island area to use as a predictor
+temp = all_ISAR %>% 
+  filter(!is.na(island_area_ha))
+
+temp = temp %>% 
+  filter(island_area_ha != 0)
+
+temp$larea <- log(temp$island_area_ha) - mean(log(temp$island_area_ha))
+
+## univariate responses (same as Chase et al 2020 Nature analyses)
+Sn = temp %>% 
+  filter(index=='S_n') %>% 
+  select(Study.x, value, larea, island_area_ha, island_code, Sn = value)
+
+Spie = temp %>% 
+  filter(index=='ENS') %>% 
+  select(Study.x, value, larea,island_area_ha, island_code, Spie = value) 
+
+# Sn and Spie: study (archipelago) level estimates
+Sn_study_coefs <- coef(Sn_lnorm)
+Spie_study_coefs <- coef(Spie_lnorm)
+study_coefs <- tibble(Study = rownames (Sn_study_coefs$Study.x),
+                   Spie_intercept = Spie_study_coefs$Study.x[, , "Intercept"][,'Estimate'],
+                   Spie_slope = Spie_study_coefs$Study.x[, , "larea"][,'Estimate'],
+                   Spiemin = Spie_study_coefs$Study.x[, , "larea"][,'Q2.5'],
+                   Spiemax = Spie_study_coefs$Study.x[, , "larea"][,'Q97.5'],
+                   Sn_intercept = Sn_study_coefs$Study.x[, , "Intercept"][,'Estimate'],
+                   Sn_slope = Sn_study_coefs$Study.x[, , "larea"][,'Estimate'],
+                   Snmin = Sn_study_coefs$Study.x[, , "larea"][,'Q2.5'],
+                   Snmax = Sn_study_coefs$Study.x[, , "larea"][,'Q97.5'])
+
+study_coefs <- study_coefs %>% mutate(hypothesis = ifelse(Snmin > 0 & Spiemin <= 0, "Rare species", 
+                                          ifelse(Snmin > 0 & Spiemin > 0, "Rare and common", "Sampling effects")))
+
+study_coefs %>% 
+  group_by(hypothesis) %>% 
+  summarise(n())
+
+# global parameters
+Sn_global <- fixef(Sn_lnorm) 
+
+Sn_fitted <- cbind(Sn_lnorm$data, 
+                   fitted(Sn_lnorm, re_formula = NA)) %>% 
   as_tibble() %>% 
-  distinct(Study.x) %>% 
-  mutate(level = Study.x) %>%
-  nest(data = c(level)) 
+  inner_join(Sn %>% 
+               distinct(Study.x, larea, island_area_ha))
 
-study_sample_posterior <- study_levels %>%
-  mutate(Spie_global = purrr::map(data, ~posterior_samples(Spie_lnorm, 
-                                                          pars = 'b_larea',
-                                                          fixed = TRUE) %>% unlist() %>% as.numeric()),
-         Spie_study = purrr::map(data, ~posterior_samples(Spie_lnorm, 
-                                                    pars = paste('r_Study.x[', as.character(.x$level), ',larea]', sep=''),
-                                                    fixed = TRUE) %>% unlist() %>% as.numeric()),
-         Sn_global = purrr::map(data, ~posterior_samples(Sn_lnorm, 
-                                                        pars = 'b_larea',
-                                                        fixed = TRUE) %>% unlist() %>% as.numeric()),
-         Sn_study = purrr::map(data, ~posterior_samples(Sn_lnorm, 
-                                                  pars = paste('r_Study.x[', as.character(.x$level), ',larea]', sep=''),
-                                                  fixed = TRUE) %>% unlist() %>% as.numeric()))
+Spie_global <- fixef(Spie_lnorm) 
 
-# load the meta data: this is not very clean, and the join with the DEM elevation data is not working
-env_file0 <- read_csv("~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/env_file_august.xlsx - new.csv")
+Spie_fitted <- cbind(Spie_lnorm$data, 
+                   fitted(Spie_lnorm, re_formula = NA)) %>% 
+  as_tibble() %>% 
+  inner_join(Spie %>% 
+               distinct(Study.x, larea, island_area_ha))
 
-meta <- env_file0 %>%
+# load the meta data
+env_file <- read_csv("~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/env_file_august.xlsx - new.csv")
+
+env <- env_file %>% 
+  select(Study, island_code,island_area_ha, Type_of_island, Taxa) %>% 
+  filter(island_area_ha!=0) %>% 
+  mutate(log_a = log(island_area_ha) - mean(log(island_area_ha)),
+         # put beetles back in with the other invertebrates
+         simple_taxa = ifelse(Taxa=='Beetles', 'Invertebrates', Taxa))
+
+env_tot <- env %>% 
   rename(Study.x = Study) %>% 
-  distinct(Study.x, Taxa, Type_of_island, n_island_cat) %>% 
-  # filter to studies in the model
-  filter(Study.x %in% study_levels$Study.x) %>% 
-  mutate(simple_taxa = ifelse(Taxa=='Beetles', 'Invertebrates', Taxa))
+  group_by(Study.x) %>% 
+  summarise(xmin = min(island_area_ha),
+            xmax = max(island_area_ha),
+            cxmin = min(log_a),
+            cxmax = max(log_a),
+            Type_of_island = unique(Type_of_island),
+            Taxa = unique(Taxa),
+            simple_taxa = unique(simple_taxa))
 
-# check that you have no NAs
-study_sample_posterior <- left_join(study_sample_posterior,
-                                    meta,
-                                    by = 'Study.x') %>% 
-  unnest(cols = c(Spie_global, Spie_study,
-                  Sn_global, Sn_study)) %>% 
-  select(-data)
+hyp_colour = c('Rare and common' = '#7570b3',
+               'Rare species' = '#d95f02',
+               'Sampling effects' = '#1b9e77')
 
-# simplify island type: true (ocean / archipelego) or other
-study_sample_posterior <- study_sample_posterior %>% 
-  mutate(true_other = ifelse(Type_of_island=='True island', 'True', 'Other'))
-
-# group posterior distributions for each taxa
-post_taxa <-
+Spie_regPlot <-
 ggplot() +
-  facet_wrap(~factor(metric,
-                     levels = c('Rarefied richness', 
-                                'Evenness'),
-                     labels = c(expression(paste(S[n])),
-                                expression(paste(S[PIE])))),
-             ncol = 2,
-             scales = 'free_x', labeller = label_parsed) +
-  # density of posteriors of Spie study-level slopes grouped by taxa
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
-                                 mutate(metric='Evenness'),
-                               aes(x = Spie_global + Spie_study,
-                                   y = simple_taxa,
-                                   # col="#fdbe85",
-                                   fill = stat(quantile)
-                               ),
-                               quantiles = c(0.025, 0.25, 0.75, 0.975),
-                               calc_ecdf = T,
-                               scale = 0.9,
-                               linetype = 0) +
-  # repeat for Sn
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
-                                 mutate(metric='Rarefied richness'),
-                               aes(x = Sn_global + Sn_study,
-                                   y = simple_taxa,
-                                   # col = "#fdbe85",
-                                   fill = stat(quantile)
-                               ),
-                               quantiles = c(0.025, 0.25, 0.75, 0.975),
-                               calc_ecdf = T,
-                               scale = 0.9,
-                               linetype = 0) +
-  geom_vline(xintercept = 0, lty = 2) +
-  # global estimates
-  geom_rect(data = study_sample_posterior %>% 
-                mutate(metric = 'Evenness',
-                       lower = quantile(Spie_global, probs = c(0.025)),
-                       upper = quantile(Spie_global, probs = c(0.975))) %>% 
-              distinct(metric, lower, upper),
-              aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
-            alpha = 0.5) +
-  geom_rect(data = study_sample_posterior %>% 
-              mutate(metric = 'Rarefied richness',
-                     lower = quantile(Sn_global, probs = c(0.025)),
-                     upper = quantile(Sn_global, probs = c(0.975))) %>% 
-              distinct(metric, lower, upper),
-            aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
-            alpha = 0.5) +
-  geom_vline(data = study_sample_posterior %>% 
-               mutate(metric = 'Evenness'),
-             aes(xintercept = median(Spie_global))) +
-  geom_vline(data = study_sample_posterior %>% 
-               mutate(metric = 'Rarefied richness'),
-             aes(xintercept = median(Sn_global))) +
-  # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
-               mutate(metric='Rarefied richness'),
-             aes(x = Sn_global + Sn_study, 
-                 y = simple_taxa),
-             stat = ggstance:::StatSummaryh,
-             fun.x = median,
-             size = 2.5, shape = 17) + 
-  # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
-               mutate(metric='Evenness'),
-             aes(x = Spie_global + Spie_study, 
-                 y = simple_taxa),
-             stat = ggstance:::StatSummaryh,
-             fun.x = median,
-             size = 2.5, shape = 17) +
-  geom_text(data = study_sample_posterior %>%
-              group_by(simple_taxa) %>%
-              summarise(n_study = n_distinct(Study.x)) %>%
-              ungroup() %>%
-              distinct(simple_taxa, n_study, .keep_all = T) %>% 
-              mutate(metric = 'Rarefied richness'),
-            aes(x=0.4, y=simple_taxa,
-                label=paste('n[study] == ', n_study)),
-            size=3.8,
-            nudge_y = 0.1, parse = T) +
-  labs(y = 'Taxon group',
-       x = 'Study-level slopes') +
-  scale_y_discrete(labels = scales::wrap_format(12), expand = c(0.05,0,0.1,0)) +
-  scale_fill_manual(name = 'Posterior probability',
-                    values = c('#bdc9e1', '#74a9cf', '#2b8cbe',
-                               '#74a9cf', '#bdc9e1')) +
-  theme_minimal() +
-  theme(panel.grid = element_blank(),
-        panel.border = element_rect(fill = NA, colour = 'black'),
-        legend.key = element_blank(),
-        legend.position = 'none', 
-        strip.text = element_text(hjust = 0, size = 12),
-        # axis.title.y = element_blank(),
-        legend.justification = c(1, 1),
-        legend.background = element_blank(),
-        aspect.ratio = 1)
-
-# group posterior distributions for island types
-post_type <-
-ggplot() +
-  facet_wrap(~factor(metric,
-                     levels = c('Sn', 'Spie'),
-                     labels = c(expression(paste(S[n])),
-                                expression(paste(S[PIE])))),
-             ncol = 2,
-             scales = 'free_x', labeller = label_parsed) +
-  # density of posteriors of Spie study-level slopes grouped by taxa
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
-                                 mutate(metric = 'Spie'),
-                               aes(x = Spie_global + Spie_study,
-                                   y = true_other,
-                                   fill = stat(quantile)
-                               ),
-                               quantiles = c(0.025, 0.25, 0.75, 0.975),
-                               calc_ecdf = T,
-                               scale = 0.9, linetype = 0) +
-  # repeat for Sn
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
-                                 mutate(metric = 'Sn'),
-                               aes(x = Sn_global + Sn_study,
-                                   y = true_other,
-                                   fill = stat(quantile)
-                               ),
-                               quantiles = c(0.025, 0.25, 0.75, 0.975),
-                               calc_ecdf = T,
-                               scale = 0.9, linetype = 0) +
-  # global estimates
-  geom_rect(data = study_sample_posterior %>% 
-              mutate(metric = 'Spie',
-                     lower = quantile(Spie_global, probs = c(0.025)),
-                     upper = quantile(Spie_global, probs = c(0.975))) %>% 
-              distinct(metric, lower, upper),
-            aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
-            alpha = 0.5) +
-  geom_rect(data = study_sample_posterior %>% 
-              mutate(metric = 'Sn',
-                     lower = quantile(Sn_global, probs = c(0.025)),
-                     upper = quantile(Sn_global, probs = c(0.975))) %>% 
-              distinct(metric, lower, upper),
-            aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
-            alpha = 0.5) +
-  geom_vline(data = study_sample_posterior %>% 
-               mutate(metric = 'Spie'),
-             aes(xintercept = median(Spie_global))) +
-  geom_vline(data = study_sample_posterior %>% 
-               mutate(metric = 'Sn'),
-             aes(xintercept = median(Sn_global))) +
-  # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
-               mutate(metric = 'Sn'),
-             aes(x = Sn_global + Sn_study, 
-                 y = true_other),
-             stat = ggstance:::StatSummaryh,
-             fun.x = median,
-             size = 2.5, shape = 17) + 
-  # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
-               mutate(metric = 'Spie'),
-             aes(x = Spie_global + Spie_study, 
-                 y = true_other),
-             stat = ggstance:::StatSummaryh,
-             fun.x = median,
-             size = 2.5, shape = 17) +
-  geom_vline(xintercept = 0, lty = 2) +
-  geom_text(data = study_sample_posterior %>%
-              group_by(true_other) %>%
-              summarise(n_study = n_distinct(Study.x)) %>%
-              ungroup() %>%
-              distinct(true_other, n_study, .keep_all = T) %>% 
-              mutate(metric = 'Sn'),
-            aes(x=0.4, y=true_other,
-                label=paste('n[study] == ', n_study)),
-            size=3.8,
-            nudge_y = 0.1, parse = T) +
+  # data
+  geom_point(data = left_join(Spie %>% 
+                                mutate(Study = Study.x),
+                              env_tot %>% 
+                                distinct(Study.x, Taxa, simple_taxa)),
+             aes(x = island_area_ha, y = Spie, colour = simple_taxa),
+             size = 1, alpha = 0.25) +
+  geom_segment(data = left_join(study_coefs %>% 
+                                  rename(Study.x = Study),
+                                env_tot),
+               aes(group = Study.x,
+                   colour = simple_taxa,
+                   x = xmin,
+                   xend = xmax,
+                   y = exp(Spie_intercept + Spie_slope * cxmin),
+                   yend = exp(Spie_intercept + Spie_slope * cxmax)),
+               size = 0.5) +
+  # fixed effect
+  geom_line(data = Spie_fitted, 
+            aes(x = island_area_ha,
+                y = Estimate),
+            size = 1) +
+  # fixed effect uncertainty
+  geom_ribbon(data = Spie_fitted,
+              aes(x = island_area_ha,
+                  ymin = Q2.5,
+                  ymax = Q97.5),
+              alpha = 0.3) +
+  # add regression coefficient and uncertainty interval
+  annotate('text', x = 0.02, y = Inf, hjust = 0.1, vjust = 1.4,
+           label = paste("beta == ", #[Frag.~size]
+                         round(Spie_global['larea','Estimate'],2),
+                         "  (",
+                         round(Spie_global['larea','Q2.5'],2),
+                         " - ",
+                         round(Spie_global['larea','Q97.5'],2),
+                         ")"),  
+           parse = T#, size = 2
+           ) +
+  scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  scale_y_continuous(trans = 'log', breaks = c(1, 2, 4, 8, 16,32,64)) +
+  # scale_color_manual(name = '', values = hyp_colour, guide = F) +
+  scale_colour_viridis_d(guide = F) +
+  labs(x = '',
+       y = expression(paste(S[PIE], ' (evenness)'))#,
+       # tag = 'd'
+       ) +
   theme_bw() +
-  labs(y = 'Island type',
-       x = expression(paste('Study-level slopes'))
-       # subtitle = expression(paste('Posterior samples of study-level ', S[std], ' fragment area slopes'))#,
-       # tag = 'c'
-  ) +
-  scale_y_discrete(labels = scales::wrap_format(12), expand = c(0.05,0,0.1,0)) +
-  scale_fill_manual(name = 'Posterior probability',
-                    values = c('#bdc9e1', '#74a9cf', '#2b8cbe',
-                               '#74a9cf', '#bdc9e1')) +
-  theme_minimal() +
-  theme(panel.grid = element_blank(),
-        panel.border = element_rect(fill = NA, colour = 'black'),
-        legend.key = element_blank(),
-        legend.position = 'none', 
-        strip.text = element_text(hjust = 0, size = 12),
-        # axis.title.y = element_blank(),
-        legend.justification = c(1, 1),
-        legend.background = element_blank(),
-        aspect.ratio = 1)
-
-
-## dummy plot for creating separate legend
-three_grey_legend <- ggplot() +
-  # facet_grid(continent ~ ., scale = 'free') +
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
-                                 mutate(metric = 'Sn'),
-                               aes(x = Sn_global + Sn_study,
-                                   y = true_other,
-                                   fill = stat(quantile)
-                               ),
-                               quantiles = c(0.75, 0.975),
-                               calc_ecdf = T,
-                               scale = 0.9, linetype = 0) +
-  scale_fill_manual(name = 'Posterior probability',
-                    values = c('#bdc9e1', '#74a9cf', '#2b8cbe'),
-                    labels = c('< 5%', '< 45%',  '50%')) +
-  theme(panel.grid = element_blank(),
-        legend.key = element_blank(),
-        legend.position = 'bottom', 
+  theme(legend.position = c(0.5, 0.9),
         legend.direction = 'horizontal',
-        # legend.justification = c(1, 1),
-        legend.background = element_blank(),
-        # legend.text = element_text(size = 5, face = 'plain'),
-        # legend.title = element_text(size = 6, face = 'plain'),
-        legend.margin = margin(),
-        legend.box.spacing = unit(c(0,0,0,0), units = 'mm'),
-        # legend.key.size = unit(2, units = 'mm'),
-        plot.margin = unit(c(0,0,0,0), units = 'mm')) #+
+        legend.background = element_blank()#,
+        # text = element_text(size = 7),
+        # plot.tag = element_text(size = 8, face = 'bold')
+        )
+
+Sn_regPlot <-
+ggplot() +
+  # data
+  geom_point(data = left_join(Sn %>% 
+                                mutate(Study = Study.x),
+                              env_tot %>% 
+                                distinct(Study.x, Taxa, simple_taxa)),
+             aes(x = island_area_ha, y = Sn, colour = simple_taxa),
+             size = 1, alpha = 0.25) +
+  geom_segment(data = left_join(study_coefs %>% 
+                                  rename(Study.x = Study),
+                                env_tot),
+               aes(group = Study.x,
+                   colour = simple_taxa,
+                   x = xmin,
+                   xend = xmax,
+                   y = exp(Sn_intercept + Sn_slope * cxmin),
+                   yend = exp(Sn_intercept + Sn_slope * cxmax)),
+               size = 0.5) +
+  # fixed effect
+  geom_line(data = Sn_fitted, 
+            aes(x = island_area_ha,
+                y = Estimate),
+            size = 1) +
+  # fixed effect uncertainty
+  geom_ribbon(data = Sn_fitted,
+              aes(x = island_area_ha,
+                  ymin = Q2.5,
+                  ymax = Q97.5),
+              alpha = 0.3) +
+  # add regression coefficient and uncertainty interval
+  annotate('text', x = 0.02, y = Inf, hjust = 0.1, vjust = 1.4,
+           label = paste("beta == ", #[Frag.~size]
+                         round(Sn_global['larea','Estimate'],2),
+                         "  (",
+                         round(Sn_global['larea','Q2.5'],2),
+                         " - ",
+                         round(Sn_global['larea','Q97.5'],2),
+                         ")"),  
+           parse = T#, size = 2
+  ) +
+  scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  scale_y_continuous(trans = 'log', breaks = c(1, 2, 4, 8, 16,32,64, 128, 256)) +
+  # scale_color_manual(name = '', values = hyp_colour, guide = F) +
+  scale_colour_viridis_d(guide = F) +
+  labs(x = '',
+       y = expression(paste(S[n], ' (rarefied richness)'))#,
+       # tag = 'd'
+  ) +
+  theme_bw() +
+  theme(legend.position = c(0.5, 0.9),
+        legend.direction = 'horizontal',
+        legend.background = element_blank()#,
+        # text = element_text(size = 7),
+        # plot.tag = element_text(size = 8, face = 'bold')
+  )
+
+# separate colour legend
+col_legend <- ggplot() +
+  geom_point(data = left_join(Sn %>% 
+                                mutate(Study = Study.x),
+                              env_tot %>% 
+                                distinct(Study.x, Taxa, simple_taxa)),
+             aes(x = island_area_ha, y = Sn, colour = simple_taxa),
+             size = 1, alpha = 0.25)+
+  geom_segment(data = left_join(study_coefs %>% 
+                                  rename(Study.x = Study),
+                                env_tot),
+               aes(group = Study.x,
+                   colour = simple_taxa,
+                   x = xmin,
+                   xend = xmax,
+                   y = exp(Sn_intercept + Sn_slope * cxmin),
+                   yend = exp(Sn_intercept + Sn_slope * cxmax)),
+               size = 0.5) +
+  # scale_color_manual(name = 'Hypothesis', values = hyp_colour) +
+  scale_color_viridis_d(name = 'Taxa') +
+  theme_bw() +
+  theme(legend.position = 'bottom',
+        legend.direction = 'horizontal',
+        legend.background = element_blank()) +
+  guides(colour = guide_legend(nrow = 1))
 
 source('~/Dropbox/1current/R_random/functions/gg_legend.R')
-legend <- gg_legend(three_grey_legend)
+col_legend2 <- gg_legend(col_legend)
 
-cowplot::plot_grid(post_taxa,
-                   post_type, 
-                   legend,
-                   nrow = 3,
-                   rel_heights = c(1, 1, 0.05),
-                   labels = c('a', 'b', ''))
-
-ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/fig3_inverts.png',
-       width = 250, height = 250, units = 'mm')
-
+cowplot::plot_grid(cowplot::plot_grid(Sn_regPlot,
+                                      Spie_regPlot, labels = 'auto'),
+                   col_legend2,
+                   rel_heights = c(1, 0.05),
+                   ncol = 1) +
+  cowplot::draw_label(y = 0.1,
+                      label = 'Island area (ha)')
+ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/Fig3_taxa_inverts.png', width = 200, height = 90, units = 'mm')
 

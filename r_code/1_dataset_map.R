@@ -56,7 +56,7 @@ map_taxa <- ggplot() +
                                        "Lake island"= 16 ))+
  labs(shape="Island type", colour="Taxa", size = "Number of islands")
  
- ggsave((paste(figures_path, "/dataset_map.png",sep="")),
+ ggsave((paste(figures_path, "/Fig2_map.png",sep="")),
        width = 340, height = 200, units = 'mm')
  
  
