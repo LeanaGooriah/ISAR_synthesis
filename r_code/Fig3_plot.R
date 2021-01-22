@@ -5,28 +5,28 @@ library(tidyverse)
 library(brms)
 
 # SB computer
-load('~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/diversity_global_synthesis_with_area_NEW.Rdata')
-load('~/Dropbox/ISAR Meta-analysis/new_Sept2020/results/univariate_models.Rdata')
-load('~/Dropbox/ISAR Meta-analysis/new_Sept2020/results/Sn_Spie_multi.Rdata')
+load('./data/diversity_global_synthesis_with_area_NEW.Rdata')
+load('./results/univariate_models.Rdata')
+load('./results/Sn_Spie_multi.Rdata')
 
 # data that models were fit to:
 # log and mean centre island area to use as a predictor
-temp = all_ISAR %>% 
+temp = all_ISAR %>%
   filter(!is.na(island_area_ha))
 
-temp = temp %>% 
+temp = temp %>%
   filter(island_area_ha != 0)
 
 temp$larea <- log(temp$island_area_ha) - mean(log(temp$island_area_ha))
 
 ## univariate responses (same as Chase et al 2020 Nature analyses)
-Sn = temp %>% 
-  filter(index=='S_n') %>% 
+Sn = temp %>%
+  filter(index=='S_n') %>%
   select(Study.x, value, larea, island_area_ha, island_code, Sn = value)
 
-Spie = temp %>% 
-  filter(index=='ENS') %>% 
-  select(Study.x, value, larea,island_area_ha, island_code, Spie = value) 
+Spie = temp %>%
+  filter(index=='ENS') %>%
+  select(Study.x, value, larea,island_area_ha, island_code, Spie = value)
 
 # Sn and Spie: study (archipelago) level estimates
 Sn_study_coefs <- coef(Sn_lnorm)
@@ -41,43 +41,43 @@ study_coefs <- tibble(Study = rownames (Sn_study_coefs$Study.x),
                    Snmin = Sn_study_coefs$Study.x[, , "larea"][,'Q2.5'],
                    Snmax = Sn_study_coefs$Study.x[, , "larea"][,'Q97.5'])
 
-study_coefs <- study_coefs %>% mutate(hypothesis = ifelse(Snmin > 0 & Spiemin <= 0, "Rare species", 
+study_coefs <- study_coefs %>% mutate(hypothesis = ifelse(Snmin > 0 & Spiemin <= 0, "Rare species",
                                           ifelse(Snmin > 0 & Spiemin > 0, "Rare and common", "Sampling effects")))
 
-study_coefs %>% 
-  group_by(hypothesis) %>% 
+study_coefs %>%
+  group_by(hypothesis) %>%
   summarise(n())
 
 # global parameters
-Sn_global <- fixef(Sn_lnorm) 
+Sn_global <- fixef(Sn_lnorm)
 
-Sn_fitted <- cbind(Sn_lnorm$data, 
-                   fitted(Sn_lnorm, re_formula = NA)) %>% 
-  as_tibble() %>% 
-  inner_join(Sn %>% 
+Sn_fitted <- cbind(Sn_lnorm$data,
+                   fitted(Sn_lnorm, re_formula = NA)) %>%
+  as_tibble() %>%
+  inner_join(Sn %>%
                distinct(Study.x, larea, island_area_ha))
 
-Spie_global <- fixef(Spie_lnorm) 
+Spie_global <- fixef(Spie_lnorm)
 
-Spie_fitted <- cbind(Spie_lnorm$data, 
-                   fitted(Spie_lnorm, re_formula = NA)) %>% 
-  as_tibble() %>% 
-  inner_join(Spie %>% 
+Spie_fitted <- cbind(Spie_lnorm$data,
+                   fitted(Spie_lnorm, re_formula = NA)) %>%
+  as_tibble() %>%
+  inner_join(Spie %>%
                distinct(Study.x, larea, island_area_ha))
 
 # load the meta data
-env_file <- read_csv("~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/env_file_august.xlsx - new.csv")
+env_file <- read_csv("./data/env_file_august.xlsx - new.csv")
 
-env <- env_file %>% 
-  select(Study, island_code,island_area_ha, Type_of_island, Taxa) %>% 
-  filter(island_area_ha!=0) %>% 
+env <- env_file %>%
+  select(Study, island_code,island_area_ha, Type_of_island, Taxa) %>%
+  filter(island_area_ha!=0) %>%
   mutate(log_a = log(island_area_ha) - mean(log(island_area_ha)),
          # put beetles back in with the other invertebrates
          simple_taxa = ifelse(Taxa=='Beetles', 'Invertebrates', Taxa))
 
-env_tot <- env %>% 
-  rename(Study.x = Study) %>% 
-  group_by(Study.x) %>% 
+env_tot <- env %>%
+  rename(Study.x = Study) %>%
+  group_by(Study.x) %>%
   summarise(xmin = min(island_area_ha),
             xmax = max(island_area_ha),
             cxmin = min(log_a),
@@ -93,13 +93,13 @@ hyp_colour = c('Rare and common' = '#7570b3',
 Spie_regPlot <-
 ggplot() +
   # data
-  geom_point(data = left_join(Spie %>% 
+  geom_point(data = left_join(Spie %>%
                                 mutate(Study = Study.x),
-                              env_tot %>% 
+                              env_tot %>%
                                 distinct(Study.x, Taxa, simple_taxa)),
              aes(x = island_area_ha, y = Spie, colour = simple_taxa),
              size = 1, alpha = 0.25) +
-  geom_segment(data = left_join(study_coefs %>% 
+  geom_segment(data = left_join(study_coefs %>%
                                   rename(Study.x = Study),
                                 env_tot),
                aes(group = Study.x,
@@ -110,7 +110,7 @@ ggplot() +
                    yend = exp(Spie_intercept + Spie_slope * cxmax)),
                size = 0.5) +
   # fixed effect
-  geom_line(data = Spie_fitted, 
+  geom_line(data = Spie_fitted,
             aes(x = island_area_ha,
                 y = Estimate),
             size = 1) +
@@ -128,7 +128,7 @@ ggplot() +
                          round(Spie_global['larea','Q2.5'],2),
                          " - ",
                          round(Spie_global['larea','Q97.5'],2),
-                         ")"),  
+                         ")"),
            parse = T#, size = 2
            ) +
   scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
@@ -151,13 +151,13 @@ ggplot() +
 Sn_regPlot <-
 ggplot() +
   # data
-  geom_point(data = left_join(Sn %>% 
+  geom_point(data = left_join(Sn %>%
                                 mutate(Study = Study.x),
-                              env_tot %>% 
+                              env_tot %>%
                                 distinct(Study.x, Taxa, simple_taxa)),
              aes(x = island_area_ha, y = Sn, colour = simple_taxa),
              size = 1, alpha = 0.25) +
-  geom_segment(data = left_join(study_coefs %>% 
+  geom_segment(data = left_join(study_coefs %>%
                                   rename(Study.x = Study),
                                 env_tot),
                aes(group = Study.x,
@@ -168,7 +168,7 @@ ggplot() +
                    yend = exp(Sn_intercept + Sn_slope * cxmax)),
                size = 0.5) +
   # fixed effect
-  geom_line(data = Sn_fitted, 
+  geom_line(data = Sn_fitted,
             aes(x = island_area_ha,
                 y = Estimate),
             size = 1) +
@@ -186,7 +186,7 @@ ggplot() +
                          round(Sn_global['larea','Q2.5'],2),
                          " - ",
                          round(Sn_global['larea','Q97.5'],2),
-                         ")"),  
+                         ")"),
            parse = T#, size = 2
   ) +
   scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
@@ -208,13 +208,13 @@ ggplot() +
 
 # separate colour legend
 col_legend <- ggplot() +
-  geom_point(data = left_join(Sn %>% 
+  geom_point(data = left_join(Sn %>%
                                 mutate(Study = Study.x),
-                              env_tot %>% 
+                              env_tot %>%
                                 distinct(Study.x, Taxa, simple_taxa)),
              aes(x = island_area_ha, y = Sn, colour = simple_taxa),
              size = 1, alpha = 0.25)+
-  geom_segment(data = left_join(study_coefs %>% 
+  geom_segment(data = left_join(study_coefs %>%
                                   rename(Study.x = Study),
                                 env_tot),
                aes(group = Study.x,
@@ -232,15 +232,15 @@ col_legend <- ggplot() +
         legend.background = element_blank()) +
   guides(colour = guide_legend(nrow = 1))
 
-source('~/Dropbox/1current/R_random/functions/gg_legend.R')
-col_legend2 <- gg_legend(col_legend)
+# source('~/Dropbox/1current/R_random/functions/gg_legend.R')
+# col_legend2 <- gg_legend(col_legend)
 
 cowplot::plot_grid(cowplot::plot_grid(Sn_regPlot,
                                       Spie_regPlot, labels = 'auto'),
-                   col_legend2,
+                   # col_legend2,
                    rel_heights = c(1, 0.05),
                    ncol = 1) +
   cowplot::draw_label(y = 0.1,
                       label = 'Island area (ha)')
-ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/Fig3_taxa_inverts.png', width = 200, height = 90, units = 'mm')
+ggsave('./figures/Fig3_taxa_inverts.png', width = 200, height = 90, units = 'mm')
 

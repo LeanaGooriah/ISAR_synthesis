@@ -6,63 +6,63 @@ library(tidyverse)
 library(ggridges)
 
 # load the model fit
-load('~/Dropbox/ISAR Meta-analysis/new_Sept2020/results/univariate_models.Rdata')
+load('./results/univariate_models.Rdata')
 
-# study-levels 
-study_levels <- Sn_lnorm$data %>% 
-  as_tibble() %>% 
-  distinct(Study.x) %>% 
+# study-levels
+study_levels <- Sn_lnorm$data %>%
+  as_tibble() %>%
+  distinct(Study.x) %>%
   mutate(level = Study.x) %>%
-  nest(data = c(level)) 
+  nest(data = c(level))
 
 study_sample_posterior <- study_levels %>%
-  mutate(Spie_global = purrr::map(data, ~posterior_samples(Spie_lnorm, 
+  mutate(Spie_global = purrr::map(data, ~posterior_samples(Spie_lnorm,
                                                           pars = 'b_larea',
                                                           fixed = TRUE) %>% unlist() %>% as.numeric()),
-         Spie_study = purrr::map(data, ~posterior_samples(Spie_lnorm, 
+         Spie_study = purrr::map(data, ~posterior_samples(Spie_lnorm,
                                                     pars = paste('r_Study.x[', as.character(.x$level), ',larea]', sep=''),
                                                     fixed = TRUE) %>% unlist() %>% as.numeric()),
-         Sn_global = purrr::map(data, ~posterior_samples(Sn_lnorm, 
+         Sn_global = purrr::map(data, ~posterior_samples(Sn_lnorm,
                                                         pars = 'b_larea',
                                                         fixed = TRUE) %>% unlist() %>% as.numeric()),
-         Sn_study = purrr::map(data, ~posterior_samples(Sn_lnorm, 
+         Sn_study = purrr::map(data, ~posterior_samples(Sn_lnorm,
                                                   pars = paste('r_Study.x[', as.character(.x$level), ',larea]', sep=''),
                                                   fixed = TRUE) %>% unlist() %>% as.numeric()))
 
 # load the meta data: this is not very clean, and the join with the DEM elevation data is not working
-env_file0 <- read_csv("~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/env_file_august.xlsx - new.csv")
+env_file0 <- read_csv("./data/env_file_august.xlsx - new.csv")
 
 meta <- env_file0 %>%
-  rename(Study.x = Study) %>% 
-  distinct(Study.x, Taxa, Type_of_island, n_island_cat) %>% 
+  rename(Study.x = Study) %>%
+  distinct(Study.x, Taxa, Type_of_island, n_island_cat) %>%
   # filter to studies in the model
-  filter(Study.x %in% study_levels$Study.x) %>% 
+  filter(Study.x %in% study_levels$Study.x) %>%
   mutate(simple_taxa = ifelse(Taxa=='Beetles', 'Invertebrates', Taxa))
 
 # check that you have no NAs
 study_sample_posterior <- left_join(study_sample_posterior,
                                     meta,
-                                    by = 'Study.x') %>% 
+                                    by = 'Study.x') %>%
   unnest(cols = c(Spie_global, Spie_study,
-                  Sn_global, Sn_study)) %>% 
+                  Sn_global, Sn_study)) %>%
   select(-data)
 
 # simplify island type: true (ocean / archipelego) or other
-study_sample_posterior <- study_sample_posterior %>% 
+study_sample_posterior <- study_sample_posterior %>%
   mutate(true_other = ifelse(Type_of_island=='True island', 'True', 'Other'))
 
 # group posterior distributions for each taxa
 post_taxa <-
 ggplot() +
   facet_wrap(~factor(metric,
-                     levels = c('Rarefied richness', 
+                     levels = c('Rarefied richness',
                                 'Evenness'),
                      labels = c(expression(paste(S[n])),
                                 expression(paste(S[PIE])))),
              ncol = 2,
              scales = 'free_x', labeller = label_parsed) +
   # density of posteriors of Spie study-level slopes grouped by taxa
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+  geom_density_ridges_gradient(data = study_sample_posterior %>%
                                  mutate(metric='Evenness'),
                                aes(x = Spie_global + Spie_study,
                                    y = simple_taxa,
@@ -74,7 +74,7 @@ ggplot() +
                                scale = 0.9,
                                linetype = 0) +
   # repeat for Sn
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+  geom_density_ridges_gradient(data = study_sample_posterior %>%
                                  mutate(metric='Rarefied richness'),
                                aes(x = Sn_global + Sn_study,
                                    y = simple_taxa,
@@ -87,38 +87,38 @@ ggplot() +
                                linetype = 0) +
   geom_vline(xintercept = 0, lty = 2) +
   # global estimates
-  geom_rect(data = study_sample_posterior %>% 
+  geom_rect(data = study_sample_posterior %>%
                 mutate(metric = 'Evenness',
                        lower = quantile(Spie_global, probs = c(0.025)),
-                       upper = quantile(Spie_global, probs = c(0.975))) %>% 
+                       upper = quantile(Spie_global, probs = c(0.975))) %>%
               distinct(metric, lower, upper),
               aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
             alpha = 0.5) +
-  geom_rect(data = study_sample_posterior %>% 
+  geom_rect(data = study_sample_posterior %>%
               mutate(metric = 'Rarefied richness',
                      lower = quantile(Sn_global, probs = c(0.025)),
-                     upper = quantile(Sn_global, probs = c(0.975))) %>% 
+                     upper = quantile(Sn_global, probs = c(0.975))) %>%
               distinct(metric, lower, upper),
             aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
             alpha = 0.5) +
-  geom_vline(data = study_sample_posterior %>% 
+  geom_vline(data = study_sample_posterior %>%
                mutate(metric = 'Evenness'),
              aes(xintercept = median(Spie_global))) +
-  geom_vline(data = study_sample_posterior %>% 
+  geom_vline(data = study_sample_posterior %>%
                mutate(metric = 'Rarefied richness'),
              aes(xintercept = median(Sn_global))) +
   # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
+  geom_point(data = study_sample_posterior %>%
                mutate(metric='Rarefied richness'),
-             aes(x = Sn_global + Sn_study, 
+             aes(x = Sn_global + Sn_study,
                  y = simple_taxa),
              stat = ggstance:::StatSummaryh,
              fun.x = median,
-             size = 2.5, shape = 17) + 
+             size = 2.5, shape = 17) +
   # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
+  geom_point(data = study_sample_posterior %>%
                mutate(metric='Evenness'),
-             aes(x = Spie_global + Spie_study, 
+             aes(x = Spie_global + Spie_study,
                  y = simple_taxa),
              stat = ggstance:::StatSummaryh,
              fun.x = median,
@@ -127,7 +127,7 @@ ggplot() +
               group_by(simple_taxa) %>%
               summarise(n_study = n_distinct(Study.x)) %>%
               ungroup() %>%
-              distinct(simple_taxa, n_study, .keep_all = T) %>% 
+              distinct(simple_taxa, n_study, .keep_all = T) %>%
               mutate(metric = 'Rarefied richness'),
             aes(x=0.4, y=simple_taxa,
                 label=paste('n[study] == ', n_study)),
@@ -143,7 +143,7 @@ ggplot() +
   theme(panel.grid = element_blank(),
         panel.border = element_rect(fill = NA, colour = 'black'),
         legend.key = element_blank(),
-        legend.position = 'none', 
+        legend.position = 'none',
         strip.text = element_text(hjust = 0, size = 12),
         # axis.title.y = element_blank(),
         legend.justification = c(1, 1),
@@ -160,7 +160,7 @@ ggplot() +
              ncol = 2,
              scales = 'free_x', labeller = label_parsed) +
   # density of posteriors of Spie study-level slopes grouped by taxa
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+  geom_density_ridges_gradient(data = study_sample_posterior %>%
                                  mutate(metric = 'Spie'),
                                aes(x = Spie_global + Spie_study,
                                    y = true_other,
@@ -170,7 +170,7 @@ ggplot() +
                                calc_ecdf = T,
                                scale = 0.9, linetype = 0) +
   # repeat for Sn
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+  geom_density_ridges_gradient(data = study_sample_posterior %>%
                                  mutate(metric = 'Sn'),
                                aes(x = Sn_global + Sn_study,
                                    y = true_other,
@@ -180,38 +180,38 @@ ggplot() +
                                calc_ecdf = T,
                                scale = 0.9, linetype = 0) +
   # global estimates
-  geom_rect(data = study_sample_posterior %>% 
+  geom_rect(data = study_sample_posterior %>%
               mutate(metric = 'Spie',
                      lower = quantile(Spie_global, probs = c(0.025)),
-                     upper = quantile(Spie_global, probs = c(0.975))) %>% 
+                     upper = quantile(Spie_global, probs = c(0.975))) %>%
               distinct(metric, lower, upper),
             aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
             alpha = 0.5) +
-  geom_rect(data = study_sample_posterior %>% 
+  geom_rect(data = study_sample_posterior %>%
               mutate(metric = 'Sn',
                      lower = quantile(Sn_global, probs = c(0.025)),
-                     upper = quantile(Sn_global, probs = c(0.975))) %>% 
+                     upper = quantile(Sn_global, probs = c(0.975))) %>%
               distinct(metric, lower, upper),
             aes(xmin = lower, xmax = upper, ymin= -Inf, ymax = Inf),
             alpha = 0.5) +
-  geom_vline(data = study_sample_posterior %>% 
+  geom_vline(data = study_sample_posterior %>%
                mutate(metric = 'Spie'),
              aes(xintercept = median(Spie_global))) +
-  geom_vline(data = study_sample_posterior %>% 
+  geom_vline(data = study_sample_posterior %>%
                mutate(metric = 'Sn'),
              aes(xintercept = median(Sn_global))) +
   # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
+  geom_point(data = study_sample_posterior %>%
                mutate(metric = 'Sn'),
-             aes(x = Sn_global + Sn_study, 
+             aes(x = Sn_global + Sn_study,
                  y = true_other),
              stat = ggstance:::StatSummaryh,
              fun.x = median,
-             size = 2.5, shape = 17) + 
+             size = 2.5, shape = 17) +
   # add point for median of posterior distribution
-  geom_point(data = study_sample_posterior %>% 
+  geom_point(data = study_sample_posterior %>%
                mutate(metric = 'Spie'),
-             aes(x = Spie_global + Spie_study, 
+             aes(x = Spie_global + Spie_study,
                  y = true_other),
              stat = ggstance:::StatSummaryh,
              fun.x = median,
@@ -221,7 +221,7 @@ ggplot() +
               group_by(true_other) %>%
               summarise(n_study = n_distinct(Study.x)) %>%
               ungroup() %>%
-              distinct(true_other, n_study, .keep_all = T) %>% 
+              distinct(true_other, n_study, .keep_all = T) %>%
               mutate(metric = 'Sn'),
             aes(x=0.4, y=true_other,
                 label=paste('n[study] == ', n_study)),
@@ -241,7 +241,7 @@ ggplot() +
   theme(panel.grid = element_blank(),
         panel.border = element_rect(fill = NA, colour = 'black'),
         legend.key = element_blank(),
-        legend.position = 'none', 
+        legend.position = 'none',
         strip.text = element_text(hjust = 0, size = 12),
         # axis.title.y = element_blank(),
         legend.justification = c(1, 1),
@@ -252,7 +252,7 @@ ggplot() +
 ## dummy plot for creating separate legend
 three_grey_legend <- ggplot() +
   # facet_grid(continent ~ ., scale = 'free') +
-  geom_density_ridges_gradient(data = study_sample_posterior %>% 
+  geom_density_ridges_gradient(data = study_sample_posterior %>%
                                  mutate(metric = 'Sn'),
                                aes(x = Sn_global + Sn_study,
                                    y = true_other,
@@ -266,7 +266,7 @@ three_grey_legend <- ggplot() +
                     labels = c('< 5%', '< 45%',  '50%')) +
   theme(panel.grid = element_blank(),
         legend.key = element_blank(),
-        legend.position = 'bottom', 
+        legend.position = 'bottom',
         legend.direction = 'horizontal',
         # legend.justification = c(1, 1),
         legend.background = element_blank(),
@@ -277,17 +277,17 @@ three_grey_legend <- ggplot() +
         # legend.key.size = unit(2, units = 'mm'),
         plot.margin = unit(c(0,0,0,0), units = 'mm')) #+
 
-source('~/Dropbox/1current/R_random/functions/gg_legend.R')
-legend <- gg_legend(three_grey_legend)
+# source('~/Dropbox/1current/R_random/functions/gg_legend.R')
+# legend <- gg_legend(three_grey_legend)
 
 cowplot::plot_grid(post_taxa,
-                   post_type, 
-                   legend,
+                   post_type,
+                   # legend,
                    nrow = 3,
                    rel_heights = c(1, 1, 0.05),
                    labels = c('a', 'b', ''))
 
-ggsave('~/Dropbox/ISAR Meta-analysis/new_Sept2020/figures/Fig4_inverts.png',
+ggsave('./figures/Fig4_inverts.png',
        width = 250, height = 250, units = 'mm')
 
 
