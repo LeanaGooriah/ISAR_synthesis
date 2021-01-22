@@ -20,7 +20,7 @@ env_file0 <- read_csv("~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/env_file_a
 DEM_filter <- tibble(study_ID = c('Andrade_2002', 'Bell_2017', 'Dasilva_2019', 'Jonsson_2011', 'Macdonald_2018', 'Pereira_2017', 'Perillo_2017', 'Werden_2012',
                                   'Werner_Zalewski_2006'))
 
-elev <- read.delim("~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/env_file_alban.csv", sep = ';') %>% 
+elev <- read.delim("~/Dropbox/ISAR Meta-analysis/new_Sept2020/data/env_file_a.csv", sep = ';') %>% 
   as_tibble() %>% 
   select(study_ID, Study, island_code, elevation_m_asl, DEM_elevation_max) %>% 
   rename(Study.x = Study) %>% 
