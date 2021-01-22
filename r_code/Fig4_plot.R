@@ -277,12 +277,12 @@ three_grey_legend <- ggplot() +
         # legend.key.size = unit(2, units = 'mm'),
         plot.margin = unit(c(0,0,0,0), units = 'mm')) #+
 
-# source('~/Dropbox/1current/R_random/functions/gg_legend.R')
-# legend <- gg_legend(three_grey_legend)
+source('./functions/gg_legend.R')
+legend <- gg_legend(three_grey_legend)
 
 cowplot::plot_grid(post_taxa,
                    post_type,
-                   # legend,
+                   legend,
                    nrow = 3,
                    rel_heights = c(1, 1, 0.05),
                    labels = c('a', 'b', ''))

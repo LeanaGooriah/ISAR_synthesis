@@ -232,12 +232,12 @@ col_legend <- ggplot() +
         legend.background = element_blank()) +
   guides(colour = guide_legend(nrow = 1))
 
-# source('~/Dropbox/1current/R_random/functions/gg_legend.R')
-# col_legend2 <- gg_legend(col_legend)
+source('./functions/gg_legend.R')
+col_legend2 <- gg_legend(col_legend)
 
 cowplot::plot_grid(cowplot::plot_grid(Sn_regPlot,
                                       Spie_regPlot, labels = 'auto'),
-                   # col_legend2,
+                   col_legend2,
                    rel_heights = c(1, 0.05),
                    ncol = 1) +
   cowplot::draw_label(y = 0.1,
