@@ -11,8 +11,6 @@ Bell, A. J., Phillips, I. D., Nielsen, S. E., & Spence, J. R. (2017). Species tr
 
 Borges, P., Gaspar, C., Crespo, L. C., Rigal, F., Cardoso, P., Pereira, F., Rego, C., Amorim, I., Melo, C., Aguiar, C., André, G., Mendonça, E., Ribeiro, S., Hortal, J., Santos, A., Barcelos, L., Enghoff, H., Mahnert, V., Pita, M., … Triantis, K. (2016). New records and detailed distribution and abundance of selected arthropod species collected between 1999 and 2011 in Azorean native forests. Biodiversity Data Journal, 4, e10948. https://doi.org/10.3897/BDJ.4.e10948
 
-Burbrink, F. T., McKelvy, A. D., Pyron, R. A., & Myers, E. A. (2015). Predicting community structure in snakes on Eastern Nearctic islands using ecological neutral theory and phylogenetic methods. Proceedings of the Royal Society B: Biological Sciences, 282(1819), 20151700. https://doi.org/10.1098/rspb.2015.1700
-
 Choi, S.-W., & An, J.-S. (2011). An island network determines moth diversity on islands in Dadohaehaesang National Park, South Korea: Factors determinining moth diversity on islands in Dadohaehaesang National Park. Insect Conservation and Diversity, 4(4), 247–256. https://doi.org/10.1111/j.1752-4598.2010.00126.x
 
 Da Silva, P. G., Nunes, C. A., Ferreira, L. F., Braga, R. F., Beiroz, W., Perillo, L. N., Solar, R. R. C., & de Siqueira Neves, F. (2019). Patch and landscape effects on forest-dependent dung beetles are masked by matrix-tolerant dung beetles in a mountaintop rainforest archipelago. Science of The Total Environment, 651, 1321–1331. https://doi.org/10.1016/j.scitotenv.2018.09.195

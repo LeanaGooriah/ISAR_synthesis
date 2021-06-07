@@ -3,9 +3,9 @@
 ## Description
 
 This repository contains the raw data and code used to reproduce the analyses from the article: 
-**"Using rarefaction to synthesize the mechanisms underlying the island-species area relationship"**.
+**"Synthesis reveals that island species-area relationships emerge from processes beyond passive sampling"**.
 
- ## License
+## License
  
  
 This work is licensed under a [Creative Commons Attribution 2.0 Generic License](https://creativecommons.org/licenses/by/2.0/).
