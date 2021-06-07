@@ -5,6 +5,11 @@
 This repository contains the raw data and code used to reproduce the analyses from the article: 
 **"Synthesis reveals that island species-area relationships emerge from processes beyond passive sampling"**.
 
+## Reproducibility and R environment
+
+To ensure that the working environment (R version and package version) are documented and isolated, the package renv (https://rstudio.github.io/renv/index.html) was used. By running `renv::restore()`, renv will install all missing packages at once. This function will use the renv.lock file to download the same versions of packages that we used.
+
+
 ## License
  
  
