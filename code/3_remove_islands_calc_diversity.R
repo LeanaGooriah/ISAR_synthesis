@@ -8,7 +8,7 @@ library(devtools)
 library(vegan)
 library(tidyr)
 library(readr)
-install_github('MoBiodiv/mobr') # to install most recent version of mobr
+# install_github('MoBiodiv/mobr') # installing version saved in renv.lock is preferred
 require(mobr) # version 1.0
 
 work_dir <- getwd() # first set working directory in Menu/Session/Set working directory/to Project
