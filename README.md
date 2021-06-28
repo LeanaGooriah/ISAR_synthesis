@@ -3,7 +3,7 @@
 ## Description
 
 This repository contains the raw data and code used to reproduce the analyses from the article: 
-**"Synthesis reveals that island species-area relationships emerge from processes beyond passive sampling"**.
+**"Synthesis reveals that island species-area relationships emerge from processes beyond passive sampling", 2021, Global Ecology and Biogeography, Gooriah, Leana; Blowes, Shane; Sagouis, Alban; Schrader, Julian; Karger, Dirk; Kreft, Holger; Chase, Jonathan**.
 
 ## Reproducibility and R environment
 

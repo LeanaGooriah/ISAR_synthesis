@@ -4,11 +4,10 @@
 rm(list = ls())
 require(dplyr)
 require(tidyr)
-library(devtools)
 library(vegan)
 library(tidyr)
 library(readr)
-# install_github('MoBiodiv/mobr') # installing version saved in renv.lock is preferred
+# install_github('MoBiodiv/mobr') # installing version saved in renv.lock is preferred because the code on GitHub is rather dynamic
 require(mobr) # version 1.0
 
 work_dir <- getwd() # first set working directory in Menu/Session/Set working directory/to Project
@@ -21,6 +20,9 @@ data_path <- paste0(work_dir, "/data/isar_datasets")
 # data paths to save updated datasets according to number of individuals
 data_path1 <- paste(data_path,"/ISAR_datasets_N10",sep="")
 data_path2 <- paste(data_path,"/ISAR_datasets_N20",sep="")
+
+dir.create(data_path1, showWarnings = FALSE)
+dir.create(data_path2, showWarnings = FALSE)
 
 # Read all data file names
 filenames <- list.files(data_path, pattern="*.csv*", full.names = F)
